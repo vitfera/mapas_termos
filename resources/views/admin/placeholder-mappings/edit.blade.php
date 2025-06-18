@@ -9,7 +9,7 @@
 @section('content')
     <div class="card">
         <div class="card-body">
-            <form action="{{ route('admin.placeholder-mappings.update', $placeholderMapping) }}" method="POST">
+            <form action="{{ route('admin.placeholder-mappings.update', $placeholderMapping) }}" method="POST" id="templateForm">
                 @method('PUT')
                 @include('admin.placeholder-mappings._form', ['submitButtonText' => 'Atualizar'])
             </form>

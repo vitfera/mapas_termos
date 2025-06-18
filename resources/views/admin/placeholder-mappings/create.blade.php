@@ -9,7 +9,7 @@
 @section('content')
     <div class="card">
         <div class="card-body">
-            <form action="{{ route('admin.placeholder-mappings.store') }}" method="POST">
+            <form action="{{ route('admin.placeholder-mappings.store') }}" method="POST" id="templateForm">
                 @include('admin.placeholder-mappings._form', ['submitButtonText' => 'Criar'])
             </form>
         </div>

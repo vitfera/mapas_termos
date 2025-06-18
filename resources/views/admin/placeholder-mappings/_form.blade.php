@@ -5,46 +5,29 @@
     <select name="placeholder_id" id="placeholder_id" class="form-control" required>
         <option value="">-- selecione --</option>
         @foreach($placeholders as $ph)
-            <option value="{{ $ph->id }}"
-                {{ old('placeholder_id', $placeholderMapping->placeholder_id ?? '') == $ph->id ? 'selected' : '' }}>
-                {{ $ph->key }} ({{ $ph->template->name }})
-            </option>
+            <option value="{{ $ph->id }}">{{ $ph->key }} &mdash; {{ $ph->label }}</option>
         @endforeach
     </select>
 </div>
 
 <div class="form-group mb-3">
-    <label for="opportunity_id">Oportunidade (ID)</label>
+    <label for="opportunity_id">Oportunidade</label>
     <select name="opportunity_id" id="opportunity_id" class="form-control" required>
         <option value="">-- selecione --</option>
         @foreach($opportunities as $op)
-            <option value="{{ $op->id }}"
-                {{ old('opportunity_id', $placeholderMapping->opportunity_id ?? '') == $op->id ? 'selected' : '' }}>
-                [{{ $op->id }}] {{ $op->name }}
-            </option>
+            <option value="{{ $op->id }}">{{ $op->name }}</option>
         @endforeach
     </select>
 </div>
 
 <div class="form-group mb-3">
-    <label for="source_type">Tipo de Fonte</label>
-    <select name="source_type" id="source_type" class="form-control" required>
-        <option value="">-- selecione --</option>
-        @foreach($sourceTypes as $key => $label)
-            <option value="{{ $key }}"
-                {{ old('source_type', $placeholderMapping->source_type ?? '') == $key ? 'selected' : '' }}>
-                {{ $label }}
-            </option>
+    <label for="field_id">Campo do Edital</label>
+    <select name="field_id" id="field_id" class="form-control" required>
+        <option value="">-- selecione oportunidade antes --</option>
+        @foreach($dynamicFields as $df)
+            <option value="{{ $df->id }}">{{ $df->title }}</option>
         @endforeach
     </select>
-</div>
-
-<div class="form-group mb-3">
-    <label for="source_key">Source Key</label>
-    <input type="text" name="source_key" id="source_key" 
-           class="form-control"
-           value="{{ old('source_key', $placeholderMapping->source_key ?? '') }}"
-           required>
 </div>
 
 <div class="form-group mb-3">
@@ -56,3 +39,21 @@
 </div>
 
 <button type="submit" class="btn btn-primary">{{ $submitButtonText }}</button>
+
+@push('js')
+<script>
+  // Ao mudar de oportunidade, busca via AJAX os campos dela + fases-filhas
+  $('#opportunity_id').on('change', function() {
+    const parentId = $(this).val();
+    $('#field_id').html('<option>Carregando...</option>');
+
+    $.getJSON(`/admin/api/fields/${parentId}`, function(fields) {
+      let opts = '<option value="">-- selecione --</option>';
+      fields.forEach(f => {
+        opts += `<option value="${f.id}">${f.title}</option>`;
+      });
+      $('#field_id').html(opts);
+    });
+  });
+</script>
+@endpush
