@@ -16,11 +16,4 @@ class Template extends Model
         'body_html',
     ];
 
-    /**
-     * Get the placeholders defined for this template.
-     */
-    public function placeholders(): HasMany
-    {
-        return $this->hasMany(TemplatePlaceholder::class);
-    }
 }

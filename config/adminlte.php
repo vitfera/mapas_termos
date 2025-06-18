@@ -329,11 +329,6 @@ return [
             'icon' => 'fas fa-file-alt',
         ],
         [
-            'text' => 'Placeholders',
-            'url'  => 'admin/template-placeholders',
-            'icon' => 'fas fa-tag',
-        ],
-        [
             'text' => 'Mapeamentos',
             'url'  => 'admin/placeholder-mappings',
             'icon' => 'fas fa-project-diagram',

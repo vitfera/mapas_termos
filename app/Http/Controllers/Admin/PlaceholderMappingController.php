@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePlaceholderMappingRequest;
 use App\Http\Requests\UpdatePlaceholderMappingRequest;
 use App\Models\PlaceholderMapping;
-use App\Models\TemplatePlaceholder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use App\Models\ExternalOpportunity;
@@ -25,9 +24,6 @@ class PlaceholderMappingController extends Controller
 
     public function create(): View
     {
-        // 1) placeholders do template atual
-        $placeholders = TemplatePlaceholder::all();
-
         // 2) só as oportunidades-pai publicadas
         $opportunities = ExternalOpportunity::query()
             ->whereNull('parent_id')
@@ -76,8 +72,6 @@ class PlaceholderMappingController extends Controller
 
     public function edit(PlaceholderMapping $placeholderMapping): View
     {
-        // 1) placeholders do template atual
-        $placeholders = TemplatePlaceholder::all();
 
         // 2) só as oportunidades-pai publicadas
         $opportunities = ExternalOpportunity::query()
