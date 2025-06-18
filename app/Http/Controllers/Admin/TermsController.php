@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -18,12 +19,17 @@ class TermsController extends Controller
     {
         $opportunities = ExternalOpportunity::whereNull('parent_id')
             ->where('published_registrations', true)
-            ->orderBy('name')->get(['id','name']);
-        $templates    = \App\Models\Template::orderBy('name')->get();
+            ->orderBy('name')
+            ->get(['id','name']);
+
+        $templates = Template::orderBy('name')->get();
+
         return view('admin.terms.create', compact('opportunities','templates'));
     }
 
-    /** Gera e faz download dos PDFs (zip se quiser em lote) */
+    /**
+     * Gera e faz download dos PDFs (ou ZIP) dos termos
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -31,36 +37,35 @@ class TermsController extends Controller
             'template_id'    => 'required|integer',
         ]);
 
-        $oppId     = $data['opportunity_id'];
-        $template  = Template::findOrFail($data['template_id']);
+        $oppId    = $data['opportunity_id'];
+        $template = Template::findOrFail($data['template_id']);
 
         // 1) busca inscrições aprovadas (status=10) na fase principal
         $registrationIds = DB::connection('pgsql_remote')
             ->table('registration')
-            ->where('opportunity_id',$oppId)
-            ->where('status',10)
+            ->where('opportunity_id', $oppId)
+            ->where('status', 10)
             ->pluck('id');
+
+        // garante diretório de saída
+        $termsPath = storage_path('app/terms');
+        if (! is_dir($termsPath)) {
+            mkdir($termsPath, 0755, true);
+        }
 
         $files = [];
         foreach ($registrationIds as $regId) {
-            // 2) monta HTML do termo
-            $html = $this->buildTermHtml($template, $oppId, $regId);
+            // 2) gera as partes do termo com placeholders substituídos
+            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId);
 
-            // 3) gera PDF com Dompdf
-            $pdf = PDF::loadHTML($html)
+            // 3) gera PDF via Blade view e CSS @page para header/footer fixos
+            $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
                       ->setPaper('A4','portrait');
 
             $filename = "term_{$oppId}_{$regId}.pdf";
-            // dentro do foreach, antes de gerar o PDF:
-            $termsPath = storage_path('app/terms');
-            if (! is_dir($termsPath)) {
-                mkdir($termsPath, 0755, true);
-            }
+            $pdf->save("{$termsPath}/{$filename}");
 
-            // então:
-            $pdf->save($termsPath . "/{$filename}");
-
-            // 4) opcional: grava no DB
+            // 4) opcional: registra o arquivo no banco
             GeneratedTerm::create([
                 'template_id'     => $template->id,
                 'opportunity_id'  => $oppId,
@@ -68,68 +73,68 @@ class TermsController extends Controller
                 'filename'        => $filename,
             ]);
 
-            $files[] = storage_path("app/terms/{$filename}");
+            $files[] = "{$termsPath}/{$filename}";
         }
 
-        // 5) se for só 1, retorna ele diretamente
+        // 5) se só um PDF, retorna ele direto
         if (count($files) === 1) {
             return response()->download($files[0])->deleteFileAfterSend();
         }
 
         // 6) senão, zipa todos
         $zipName = "terms_{$oppId}.zip";
-        $zipPath = storage_path("app/terms/{$zipName}");
+        $zipPath = "{$termsPath}/{$zipName}";
         $zip = new \ZipArchive;
         $zip->open($zipPath, \ZipArchive::CREATE|\ZipArchive::OVERWRITE);
-        foreach ($files as $f) {
-            $zip->addFile($f, basename($f));
+        foreach ($files as $file) {
+            $zip->addFile($file, basename($file));
         }
         $zip->close();
+
         return response()->download($zipPath)->deleteFileAfterSend();
     }
 
     /**
-     * Monta o HTML completo: header + body + footer com placeholders substituídos
+     * Gera os arrays [header, body, footer] com placeholders substituídos
      */
-    protected function buildTermHtml(Template $tpl, int $oppId, int $regId): string
+    protected function buildTermParts(Template $tpl, int $oppId, int $regId): array
     {
-        // 1) carrega todos os mapeamentos deste edital (oppId), ordenados por prioridade
-        $mappings = PlaceholderMapping::where('opportunity_id', $oppId)
-            ->orderBy('priority')
+        // carrega mapeamentos deste edital
+        $mappings = PlaceholderMapping::where('opportunity_id', $oppId)->orderBy('priority')
             ->get();
 
-        // 2) traz todos os valores de registration_meta para esse regId
+        // busca valores de registration_meta
         $metas = DB::connection('pgsql_remote')
             ->table('registration_meta')
             ->where('object_id', $regId)
-            ->pluck('value', 'key')
+            ->pluck('value','key')
             ->toArray();
 
-        // 3) prepara arrays de busca e substituição
         $search  = [];
         $replace = [];
 
         foreach ($mappings as $map) {
-            // busca valor do campo dinâmico
             $fieldKey = "field_{$map->field_id}";
-            $val = $metas[$fieldKey] ?? '';
+            $value = $metas[$fieldKey] ?? '';
 
-            // monta os dois formatos de placeholder
-            $raw    = '{{'.$map->placeholder_key.'}}';
-            $spaced = '{{ '.$map->placeholder_key.' }}';
+            // placeholders com e sem espaços
+            $phRaw    = '{{'.$map->placeholder_key.'}}';
+            $phSpaced = '{{ '.$map->placeholder_key.' }}';
 
-            $search[]  = $raw;
-            $replace[] = $val;
+            $search[]  = $phRaw;
+            $replace[] = $value;
 
-            $search[]  = $spaced;
-            $replace[] = $val;
+            $search[]  = $phSpaced;
+            $replace[] = $value;
         }
 
-        // 4) concatena header, corpo e footer e aplica as substituições
-        $fullHtml = $tpl->header_html
-                . $tpl->body_html
-                . $tpl->footer_html;
+        // substitui no body somente
+        $bodyHtml = str_replace($search, $replace, $tpl->body_html);
 
-        return str_replace($search, $replace, $fullHtml);
+        return [
+            $tpl->header_html,
+            $bodyHtml,
+            $tpl->footer_html,
+        ];
     }
 }
