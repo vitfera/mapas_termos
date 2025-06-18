@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdatePlaceholderMappingRequest extends FormRequest
 {
@@ -11,7 +12,7 @@ class UpdatePlaceholderMappingRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +23,12 @@ class UpdatePlaceholderMappingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'placeholder_key'   => ['required','string','max:100'],
+            'placeholder_label' => ['required','string','max:255'],
+
+            'opportunity_id'    => ['required','integer','exists:pgsql_remote.opportunity,id'],
+            'field_id'          => ['required','integer','exists:pgsql_remote.registration_field_configuration,id'],
+            'priority'          => ['required','integer','min:1'],
         ];
     }
 }

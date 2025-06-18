@@ -3,15 +3,32 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PlaceholderMapping extends Model
 {
     protected $fillable = [
-        'placeholder_id',
+        'placeholder_key',
+        'placeholder_label',
         'opportunity_id',
-        'source_type',
-        'source_key',
+        'field_id',
         'priority',
     ];
+
+    // Relação com a oportunidade (Postgres remoto)
+    public function opportunity()
+    {
+        return $this->belongsTo(
+            \App\Models\ExternalOpportunity::class,
+            'opportunity_id'
+        );
+    }
+
+    // Relação com o campo dinâmico (Postgres remoto)
+    public function field()
+    {
+        return $this->belongsTo(
+            \App\Models\ExternalRegistrationFieldConfiguration::class,
+            'field_id'
+        );
+    }
 }

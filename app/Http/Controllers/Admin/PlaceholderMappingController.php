@@ -15,8 +15,9 @@ class PlaceholderMappingController extends Controller
 {
     public function index(): View
     {
-        $mappings = PlaceholderMapping::with('placeholder')
-            ->orderBy('template_placeholder_id')
+        // já traz oportunidade e field para não n+1
+        $mappings = PlaceholderMapping::with(['opportunity','field'])
+            ->orderBy('placeholder_key')
             ->paginate(20);
 
         return view('admin.placeholder-mappings.index', compact('mappings'));
@@ -24,22 +25,22 @@ class PlaceholderMappingController extends Controller
 
     public function create(): View
     {
-        // 2) só as oportunidades-pai publicadas
+        // Oportunidades-pai
         $opportunities = ExternalOpportunity::query()
             ->whereNull('parent_id')
             ->where('published_registrations', true)
             ->orderBy('name')
             ->get(['id','name']);
 
-        // 3) pegue os campos da 1ª oportunidade (para popular no load inicial)
+        // Campos para a primeira oportunidade
         $firstId = $opportunities->first()->id ?? null;
         $phaseIds = $firstId
             ? ExternalOpportunity::query()
                 ->where(function($q) use($firstId){
-                $q->where('id',$firstId)
-                    ->orWhere('parent_id',$firstId);
+                    $q->where('id', $firstId)
+                      ->orWhere('parent_id', $firstId);
                 })
-                ->where('id','!=', $firstId+1)     // mesma lógica do código Node
+                ->where('id','!=', $firstId + 1)
                 ->pluck('id')
                 ->toArray()
             : [];
@@ -53,7 +54,7 @@ class PlaceholderMappingController extends Controller
             : collect();
 
         return view('admin.placeholder-mappings.create', compact(
-        'placeholders','opportunities','dynamicFields'
+            'opportunities','dynamicFields'
         ));
     }
 
@@ -72,28 +73,22 @@ class PlaceholderMappingController extends Controller
 
     public function edit(PlaceholderMapping $placeholderMapping): View
     {
-
-        // 2) só as oportunidades-pai publicadas
         $opportunities = ExternalOpportunity::query()
             ->whereNull('parent_id')
             ->where('published_registrations', true)
             ->orderBy('name')
             ->get(['id','name']);
 
-        // 3) identifica a oportunidade selecionada no mapeamento
         $parentId = $placeholderMapping->opportunity_id;
-
-        // 4) determina fases-filhas relevantes (pai + filhos, excluindo parentId+1)
         $phaseIds = ExternalOpportunity::query()
-            ->where(function($q) use($parentId) {
+            ->where(function($q) use($parentId){
                 $q->where('id', $parentId)
-                ->orWhere('parent_id', $parentId);
+                  ->orWhere('parent_id', $parentId);
             })
-            ->where('id', '!=', $parentId + 1)
+            ->where('id','!=', $parentId + 1)
             ->pluck('id')
             ->toArray();
 
-        // 5) carrega todos os campos dinâmicos dessas fases
         $dynamicFields = ExternalRegistrationFieldConfiguration::query()
             ->whereIn('opportunity_id', $phaseIds)
             ->orderBy('opportunity_id')
@@ -102,7 +97,6 @@ class PlaceholderMappingController extends Controller
 
         return view('admin.placeholder-mappings.edit', compact(
             'placeholderMapping',
-            'placeholders',
             'opportunities',
             'dynamicFields'
         ));
