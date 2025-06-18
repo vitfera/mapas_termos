@@ -11,20 +11,16 @@ return new class extends Migration
         Schema::create('placeholder_mappings', function (Blueprint $table) {
             $table->id();
 
-            // FK apenas para template_placeholders
-            $table->foreignId('placeholder_id')
-                  ->constrained('template_placeholders')
-                  ->cascadeOnDelete();
+            $table->string('placeholder_key');
+            $table->string('placeholder_label');
 
-            // Armazena o ID da oportunidade, mas sem constraint de FK
             $table->unsignedBigInteger('opportunity_id');
 
-            $table->enum('source_type', ['meta','registration','agent']);
-            $table->string('source_key', 100);
+            $table->unsignedBigInteger('field_id');
             $table->unsignedTinyInteger('priority')->default(1);
 
             $table->unique(
-                ['placeholder_id', 'opportunity_id', 'priority'],
+                ['placeholder_key', 'opportunity_id', 'priority'],
                 'mapping_unique'
             );
 
