@@ -9,7 +9,7 @@
 @section('content')
     <div class="card">
         <div class="card-body">
-            <form action="{{ route('admin.templates.store') }}" method="POST">
+            <form action="{{ route('admin.templates.store') }}" method="POST" id="templateForm">
                 @include('admin.templates._form', ['submitButtonText' => 'Criar'])
             </form>
         </div>
