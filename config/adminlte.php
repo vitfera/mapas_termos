@@ -321,6 +321,24 @@ return [
             'can' => 'manage-blog',
         ],
         [
+            'header' => 'GERENCIAMENTO DE TERMOS',
+        ],
+        [
+            'text' => 'Templates',
+            'url'  => 'admin/templates',
+            'icon' => 'fas fa-file-alt',
+        ],
+        [
+            'text' => 'Placeholders',
+            'url'  => 'admin/template-placeholders',
+            'icon' => 'fas fa-tag',
+        ],
+        [
+            'text' => 'Mapeamentos',
+            'url'  => 'admin/placeholder-mappings',
+            'icon' => 'fas fa-project-diagram',
+        ],
+        [
             'text' => 'pages',
             'url' => 'admin/pages',
             'icon' => 'far fa-fw fa-file',
