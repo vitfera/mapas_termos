@@ -10,6 +10,7 @@ use App\Models\PlaceholderMapping;
 use App\Models\ExternalOpportunity;
 use App\Models\ExternalRegistrationFieldConfiguration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PDF; // se usar barryvdh/laravel-dompdf
 
 class TermsController extends Controller
@@ -62,8 +63,20 @@ class TermsController extends Controller
             $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
                       ->setPaper('A4','portrait');
 
-            $filename = "term_{$oppId}_{$regId}.pdf";
-            $pdf->save("{$termsPath}/{$filename}");
+            // gera nome do arquivo incluindo número de inscrição e nome do agente (slug sem acentos)
+            $registration = DB::connection('pgsql_remote')
+                ->table('registration')
+                ->where('id', $regId)
+                ->select('number', 'agent_id')
+                ->first();
+            $regNumber = $registration->number ?? $regId;
+            $agentNameRaw = DB::connection('pgsql_remote')
+                ->table('agent')
+                ->where('id', $registration->agent_id)
+                ->value('name');
+            $agentSlug = Str::slug($agentNameRaw ?: '');
+            $filename = "term_{$oppId}_{$regNumber}_{$agentSlug}.pdf";
+                    $pdf->save("{$termsPath}/{$filename}");
 
             // 4) opcional: registra o arquivo no banco
             GeneratedTerm::create([
