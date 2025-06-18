@@ -334,6 +334,14 @@ return [
             'icon' => 'fas fa-project-diagram',
         ],
         [
+            'header' => 'GERAÇÃO DE TERMOS',
+        ],
+        [
+            'text' => 'Termos',
+            'url'  => 'admin/terms/create',
+            'icon' => 'fas fa-file-signature',
+        ],
+        [
             'text' => 'pages',
             'url' => 'admin/pages',
             'icon' => 'far fa-fw fa-file',
