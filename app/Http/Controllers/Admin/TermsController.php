@@ -36,10 +36,13 @@ class TermsController extends Controller
         $data = $request->validate([
             'opportunity_id' => 'required|integer',
             'template_id'    => 'required|integer',
+            'start_number'   => 'nullable|integer|min:1',
         ]);
 
-        $oppId    = $data['opportunity_id'];
-        $template = Template::findOrFail($data['template_id']);
+        $oppId       = $data['opportunity_id'];
+        $template    = Template::findOrFail($data['template_id']);
+        $startNumber = $data['start_number'] ?? 1;
+        $currentNumber = $startNumber;
 
         // 1) busca inscrições aprovadas (status=10) na fase principal
         $registrationIds = DB::connection('pgsql_remote')
@@ -56,14 +59,14 @@ class TermsController extends Controller
 
         $files = [];
         foreach ($registrationIds as $regId) {
-            // 2) gera as partes do termo com placeholders substituídos
-            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId);
+            // 2) gera as partes do termo com placeholders substituídos, incluindo ID sequencial
+            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId, $currentNumber);
 
             // 3) gera PDF via Blade view e CSS @page para header/footer fixos
             $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
                       ->setPaper('A4','portrait');
 
-            // gera nome do arquivo incluindo número de inscrição e nome do agente (slug sem acentos)
+            // monta filename: inclui número de inscrição e nome do agente em slug
             $registration = DB::connection('pgsql_remote')
                 ->table('registration')
                 ->where('id', $regId)
@@ -76,7 +79,8 @@ class TermsController extends Controller
                 ->value('name');
             $agentSlug = Str::slug($agentNameRaw ?: '');
             $filename = "term_{$oppId}_{$regNumber}_{$agentSlug}.pdf";
-                    $pdf->save("{$termsPath}/{$filename}");
+
+            $pdf->save("{$termsPath}/{$filename}");
 
             // 4) opcional: registra o arquivo no banco
             GeneratedTerm::create([
@@ -87,6 +91,7 @@ class TermsController extends Controller
             ]);
 
             $files[] = "{$termsPath}/{$filename}";
+            $currentNumber++;
         }
 
         // 5) se só um PDF, retorna ele direto
@@ -108,9 +113,10 @@ class TermsController extends Controller
     }
 
     /**
-     * Gera os arrays [header, body, footer] com placeholders substituídos
+     * Gera os arrays [header, body, footer] substituindo placeholders,
+     * incluindo o placeholder {{id}} se existir, com numeração sequencial e ano atual.
      */
-    protected function buildTermParts(Template $tpl, int $oppId, int $regId): array
+    protected function buildTermParts(Template $tpl, int $oppId, int $regId, int $sequenceNumber): array
     {
         // carrega mapeamentos deste edital
         $mappings = PlaceholderMapping::where('opportunity_id', $oppId)->orderBy('priority')
@@ -141,7 +147,14 @@ class TermsController extends Controller
             $replace[] = $value;
         }
 
-        // substitui no body somente
+        // adiciona placeholder {{id}} se existir no template
+        $year = date('Y');
+        $idValue = "{$sequenceNumber}/{$year}";
+        $search[]  = '{{id}}';
+        $replace[] = $idValue;
+        $search[]  = '{{ id }}';
+        $replace[] = $idValue;
+
         $bodyHtml = str_replace($search, $replace, $tpl->body_html);
 
         return [

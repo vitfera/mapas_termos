@@ -28,6 +28,17 @@
       </select>
     </div>
 
+    <div class="form-group mb-3">
+        <label for="start_number">Número Inicial</label>
+        <input type="number" name="start_number" id="start_number"
+                class="form-control"
+                value="{{ old('start_number', 1) }}"
+                min="1">
+        <small class="form-text text-muted">
+            Se o template usar @{{id}}, será substituído por Número/2025, incrementando em cada termo.
+        </small>
+    </div>
+
     <button type="submit" class="btn btn-success">
       Gerar Termos
     </button>
