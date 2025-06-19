@@ -20,7 +20,6 @@
                     <tr>
                         <th>ID</th>
                         <th>Nome</th>
-                        <th>Categoria</th>
                         <th>Criado em</th>
                         <th>Ações</th>
                     </tr>
@@ -30,7 +29,6 @@
                         <tr>
                             <td>{{ $template->id }}</td>
                             <td>{{ $template->name }}</td>
-                            <td>{{ ucfirst($template->category) }}</td>
                             <td>{{ $template->created_at->format('d/m/Y') }}</td>
                             <td>
                                 <a href="{{ route('admin.templates.show', $template) }}" class="btn btn-sm btn-info">Ver</a>

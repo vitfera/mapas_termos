@@ -11,15 +11,6 @@
 </div>
 
 <div class="form-group mb-3">
-    <label for="category">Categoria</label>
-    <select name="category" id="category" class="form-control" required>
-        <option value="">-- selecione --</option>
-        <option value="execucao" {{ old('category', $template->category ?? '')=='execucao'?'selected':'' }}>Execução</option>
-        <option value="premiacao" {{ old('category', $template->category ?? '')=='premiacao'?'selected':'' }}>Premiação</option>
-    </select>
-</div>
-
-<div class="form-group mb-3">
     <label for="header_html">Cabeçalho (HTML)</label>
     <input type="hidden" name="header_html" id="header_html_input" value="{{ old('header_html', $template->header_html ?? '') }}">
     <textarea id="header_html" class="form-control wysiwyg" rows="4">{{ old('header_html', $template->header_html ?? '') }}</textarea>
