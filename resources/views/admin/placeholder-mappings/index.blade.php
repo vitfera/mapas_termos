@@ -58,6 +58,6 @@
     </div>
 
     <div class="mt-3">
-        {{ $mappings->links() }}
+        {{ $mappings->links('pagination::bootstrap-4') }}
     </div>
 @stop

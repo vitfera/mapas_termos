@@ -51,6 +51,6 @@
     </div>
 
     <div class="mt-3">
-        {{ $settings->links() }}
+        {{ $settings->links('pagination::bootstrap-4') }}
     </div>
 @stop
