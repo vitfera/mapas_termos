@@ -11,7 +11,8 @@ use App\Models\ExternalOpportunity;
 use App\Models\OpportunitySetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use PDF; // se usar barryvdh/laravel-dompdf
+use PDF;
+use NumberFormatter;
 
 class TermsController extends Controller
 {
@@ -116,48 +117,102 @@ class TermsController extends Controller
      */
     protected function buildTermParts(Template $tpl, int $oppId, int $regId, int $sequenceNumber): array
     {
-        // carrega mapeamentos deste edital
-        $mappings = PlaceholderMapping::where('opportunity_id', $oppId)->orderBy('priority')
-            ->get();
+        // 1) Pega faixas da oportunidade-pai
+        $opp       = ExternalOpportunity::findOrFail($oppId);
+        $parentOpp = $opp->parent_id
+            ? ExternalOpportunity::findOrFail($opp->parent_id)
+            : $opp;
+        $ranges = json_decode($parentOpp->registration_ranges ?? '[]', true) ?: [];
 
-        // busca valores de registration_meta
+        // 2) Puxa o 'range' diretamente da inscrição (table registration)
+        $label = DB::connection('pgsql_remote')
+            ->table('registration')
+            ->where('id', $regId)
+            ->value('range');
+
+        // 3) Tenta encontrar o valor numérico correspondente
+        $num = null;
+        foreach ($ranges as $r) {
+            if (($r['label'] ?? '') === $label) {
+                $num = $r['value'];
+                break;
+            }
+        }
+
+        // 4) Formatação de valor + extenso, corrigindo singular/plural e centavos
+        $valorReplacement = '';
+        if (null !== $num) {
+            // formata o R$ 18.214,28
+            $fmtCur   = new NumberFormatter('pt_BR', NumberFormatter::CURRENCY);
+            $formatted = $fmtCur->formatCurrency($num, 'BRL');
+
+            // quebra parte inteira e centavos
+            $intPart   = (int) floor($num);
+            $cents     = (int) round(($num - $intPart) * 100);
+
+            $fmtSpell  = new NumberFormatter('pt_BR', NumberFormatter::SPELLOUT);
+
+            // extenso da parte inteira
+            $intSpell = $fmtSpell->format($intPart);
+            $intSpell = ucfirst($intSpell) . ' reais';
+
+            // extenso dos centavos, se houver
+            if ($cents > 0) {
+                $centSpell = $fmtSpell->format($cents);
+                $centSpell = ucfirst($centSpell) . ' centavos';
+                $spell = $intSpell . ' e ' . $centSpell;
+            } else {
+                $spell = $intSpell;
+            }
+
+            $valorReplacement = "{$formatted} ({$spell})";
+        }
+
+        // 5) Monta substituições iniciais para {{valor}}
+        $search  = ['{{valor}}','{{ valor }}'];
+        $replace = [$valorReplacement, $valorReplacement];
+
+        // 6) Busca todos os outros placeholders mapeados
+        //    e substitui por registration_meta ou agente, se necessário.
         $metas = DB::connection('pgsql_remote')
             ->table('registration_meta')
             ->where('object_id', $regId)
             ->pluck('value','key')
             ->toArray();
 
-        $search  = [];
-        $replace = [];
+        $mappings = PlaceholderMapping::where('opportunity_id', $oppId)
+            ->orderBy('priority')
+            ->get();
 
         foreach ($mappings as $map) {
+            if ($map->placeholder_key === 'valor') {
+                continue; // já tratado
+            }
+
+            $raw     = '{{'.$map->placeholder_key.'}}';
+            $spaced  = '{{ '.$map->placeholder_key.' }}';
+            $value   = '';
+
+            // se for campo dinâmico, do registration_meta
             $fieldKey = "field_{$map->field_id}";
-            $value = $metas[$fieldKey] ?? '';
+            if (isset($metas[$fieldKey])) {
+                $value = $metas[$fieldKey];
+            }
 
-            // placeholders com e sem espaços
-            $phRaw    = '{{'.$map->placeholder_key.'}}';
-            $phSpaced = '{{ '.$map->placeholder_key.' }}';
-
-            $search[]  = $phRaw;
-            $replace[] = $value;
-
-            $search[]  = $phSpaced;
-            $replace[] = $value;
+            $search[]  = $raw;    $replace[] = $value;
+            $search[]  = $spaced; $replace[] = $value;
         }
 
-        // adiciona placeholder {{id}} se existir no template
-        $idValue = (string) $sequenceNumber;
-        $search[]  = '{{id}}';
-        $replace[] = $idValue;
-        $search[]  = '{{ id }}';
-        $replace[] = $idValue;
+        // 7) Sequência {{id}}
+        $idVal = (string) $sequenceNumber;
+        $search[]  = '{{id}}';   $replace[] = $idVal;
+        $search[]  = '{{ id }}'; $replace[] = $idVal;
 
-        $bodyHtml = str_replace($search, $replace, $tpl->body_html);
+        // 8) Aplica em cada parte separadamente
+        $header = str_replace($search, $replace, $tpl->header_html);
+        $body   = str_replace($search, $replace, $tpl->body_html);
+        $footer = str_replace($search, $replace, $tpl->footer_html);
 
-        return [
-            $tpl->header_html,
-            $bodyHtml,
-            $tpl->footer_html,
-        ];
+        return [$header, $body, $footer];
     }
 }
