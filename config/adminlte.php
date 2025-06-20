@@ -307,6 +307,14 @@ return [
 
         // Sidebar items:
         [
+            'header' => 'GERENCIAMENTO DE EDITAIS',
+        ],
+        [
+            'text' => 'Editais',
+            'url'  => 'admin/opportunity-settings',
+            'icon' => 'fas fa-cogs',
+        ],
+        [
             'header' => 'GERENCIAMENTO DE TERMOS',
         ],
         [
