@@ -24,7 +24,6 @@ class StoreTemplateRequest extends FormRequest
         return [
             'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category'    => 'required|in:execucao,premiacao',
             'header_html' => 'nullable|string',
             'footer_html' => 'nullable|string',
             'body_html'   => 'required|string',
