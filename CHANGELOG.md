@@ -2,6 +2,18 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.1] – 2025-06-20
+
+### Adicionado
+
+- Arquivo `version.txt` na raiz do projeto para armazenar a versão atual do sistema.  
+- Rota de API `GET /info` que retorna em JSON:
+  - Nome da aplicação (`app.name` ou “Mapas”)
+  - Versão lida de `version.txt`
+  - Ambiente de execução (`app()->environment()`)
+  - Versão do PHP e do Laravel
+  - Timezone configurada (`app.timezone`)
+
 ## [1.0.0] – 2025-06-20
 
 ### Adicionado
