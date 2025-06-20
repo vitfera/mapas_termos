@@ -112,6 +112,22 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+            // …
+
+        'pgsql_remote' => [
+            'driver'   => 'pgsql',
+            'host'     => env('DB_REMOTE_HOST', '127.0.0.1'),
+            'port'     => env('DB_REMOTE_PORT', '5432'),
+            'database' => env('DB_REMOTE_DATABASE', 'forge'),
+            'username' => env('DB_REMOTE_USERNAME', 'forge'),
+            'password' => env('DB_REMOTE_PASSWORD', ''),
+            'charset'  => 'utf8',
+            'prefix'   => '',
+            'schema'   => 'public',
+            'sslmode'  => 'prefer',
+        ],
+
+
     ],
 
     /*
