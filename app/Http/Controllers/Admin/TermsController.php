@@ -9,6 +9,7 @@ use App\Models\GeneratedTerm;
 use App\Models\PlaceholderMapping;
 use App\Models\ExternalOpportunity;
 use App\Models\OpportunitySetting;
+use App\Models\ExternalRegistrationFieldConfiguration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PDF;
@@ -117,50 +118,83 @@ class TermsController extends Controller
      */
     protected function buildTermParts(Template $tpl, int $oppId, int $regId, int $sequenceNumber): array
     {
-        // 1) Pega faixas da oportunidade-pai
+        // --- 0) Identifica todas as fases relevantes (pai + filhas, exceto next) ---
+        $phaseIds = ExternalOpportunity::query()
+            ->where(function($q) use($oppId){
+                $q->where('id', $oppId)
+                ->orWhere('parent_id', $oppId);
+            })
+            ->where('id', '!=', $oppId + 1)
+            ->pluck('id')
+            ->toArray();
+
+        // --- 1) Busca todos os registration_ids filhos + pai em que buscar metas ---
+        // pai é $regId
+        $regMap = [ $oppId => $regId ];
+
+        // para cada filha, procura registration_meta.previousPhaseRegistrationId = $regId
+        $childRows = DB::connection('pgsql_remote')
+            ->table('registration as r')
+            ->join('registration_meta as rm', 'r.id', '=', 'rm.object_id')
+            ->whereIn('r.opportunity_id', $phaseIds)
+            ->where('rm.key', 'previousPhaseRegistrationId')
+            ->where('rm.value', (string)$regId)
+            ->select('r.id','r.opportunity_id')
+            ->get();
+
+        foreach($childRows as $row) {
+            // mapeia phaseId → child registration id
+            $regMap[$row->opportunity_id] = $row->id;
+        }
+
+        // --- 2) Carrega metas para cada registration_id ---
+        $metaCache = [];
+        foreach($regMap as $phaseId => $rId) {
+            $metaCache[$phaseId] = DB::connection('pgsql_remote')
+                ->table('registration_meta')
+                ->where('object_id', $rId)
+                ->pluck('value','key')
+                ->toArray();
+        }
+
+        // --- 3) Carrega inscription para 'range' e 'agent' sempre da inscrição principal ($regId) ---
+        $ins = DB::connection('pgsql_remote')
+            ->table('registration')
+            ->where('id', $regId)
+            ->select('range','agent_id','number')
+            ->first();
+
+        // --- 4) Carrega registration_ranges da opportunity-pai ---
         $opp       = ExternalOpportunity::findOrFail($oppId);
         $parentOpp = $opp->parent_id
             ? ExternalOpportunity::findOrFail($opp->parent_id)
             : $opp;
         $ranges = json_decode($parentOpp->registration_ranges ?? '[]', true) ?: [];
 
-        // 2) Puxa o 'range' diretamente da inscrição (table registration)
-        $label = DB::connection('pgsql_remote')
-            ->table('registration')
-            ->where('id', $regId)
-            ->value('range');
-
-        // 3) Tenta encontrar o valor numérico correspondente
-        $num = null;
-        foreach ($ranges as $r) {
-            if (($r['label'] ?? '') === $label) {
+        // --- 5) Monta valor + extenso para {{valor}} ---
+        $label = $ins->range ?? null;
+        $num   = null;
+        foreach($ranges as $r) {
+            if(($r['label'] ?? '') === $label) {
                 $num = $r['value'];
                 break;
             }
         }
 
-        // 4) Formatação de valor + extenso, corrigindo singular/plural e centavos
         $valorReplacement = '';
-        if (null !== $num) {
-            // formata o R$ 18.214,28
-            $fmtCur   = new NumberFormatter('pt_BR', NumberFormatter::CURRENCY);
+        if($num !== null) {
+            $fmtCur    = new \NumberFormatter('pt_BR', \NumberFormatter::CURRENCY);
             $formatted = $fmtCur->formatCurrency($num, 'BRL');
 
-            // quebra parte inteira e centavos
-            $intPart   = (int) floor($num);
-            $cents     = (int) round(($num - $intPart) * 100);
+            $intPart = (int) floor($num);
+            $cents   = (int) round(($num - $intPart) * 100);
 
-            $fmtSpell  = new NumberFormatter('pt_BR', NumberFormatter::SPELLOUT);
+            $fmtSpell = new \NumberFormatter('pt_BR', \NumberFormatter::SPELLOUT);
+            $intSpell = ucfirst($fmtSpell->format($intPart)) . ' reais';
 
-            // extenso da parte inteira
-            $intSpell = $fmtSpell->format($intPart);
-            $intSpell = ucfirst($intSpell) . ' reais';
-
-            // extenso dos centavos, se houver
-            if ($cents > 0) {
-                $centSpell = $fmtSpell->format($cents);
-                $centSpell = ucfirst($centSpell) . ' centavos';
-                $spell = $intSpell . ' e ' . $centSpell;
+            if($cents > 0) {
+                $centSpell = ucfirst($fmtSpell->format($cents)) . ' centavos';
+                $spell     = "{$intSpell} e {$centSpell}";
             } else {
                 $spell = $intSpell;
             }
@@ -168,47 +202,48 @@ class TermsController extends Controller
             $valorReplacement = "{$formatted} ({$spell})";
         }
 
-        // 5) Monta substituições iniciais para {{valor}}
         $search  = ['{{valor}}','{{ valor }}'];
         $replace = [$valorReplacement, $valorReplacement];
 
-        // 6) Busca todos os outros placeholders mapeados
-        //    e substitui por registration_meta ou agente, se necessário.
-        $metas = DB::connection('pgsql_remote')
-            ->table('registration_meta')
-            ->where('object_id', $regId)
-            ->pluck('value','key')
-            ->toArray();
-
+        // --- 6) Todos os outros placeholders mapeados (de qualquer fase) ---
         $mappings = PlaceholderMapping::where('opportunity_id', $oppId)
             ->orderBy('priority')
             ->get();
 
-        foreach ($mappings as $map) {
-            if ($map->placeholder_key === 'valor') {
-                continue; // já tratado
+        foreach($mappings as $map) {
+            if($map->placeholder_key === 'valor') {
+                continue;
             }
 
-            $raw     = '{{'.$map->placeholder_key.'}}';
-            $spaced  = '{{ '.$map->placeholder_key.' }}';
-            $value   = '';
+            // descobre a fase deste field
+            $fieldConfig = ExternalRegistrationFieldConfiguration::findOrFail($map->field_id);
+            $phaseId     = $fieldConfig->opportunity_id;
 
-            // se for campo dinâmico, do registration_meta
-            $fieldKey = "field_{$map->field_id}";
-            if (isset($metas[$fieldKey])) {
-                $value = $metas[$fieldKey];
+            $raw    = '{{'.$map->placeholder_key.'}}';
+            $spaced = '{{ '.$map->placeholder_key.' }}';
+
+            // busca no cache de metas da fase certa
+            $value = $metaCache[$phaseId]['field_'.$map->field_id] ?? '';
+
+            // se ainda vazio, tenta no agente
+            if($value === '') {
+                $agent = DB::connection('pgsql_remote')
+                    ->table('agent')
+                    ->where('id', $ins->agent_id)
+                    ->first();
+                $value = $agent->{$map->placeholder_key} ?? '';
             }
 
             $search[]  = $raw;    $replace[] = $value;
             $search[]  = $spaced; $replace[] = $value;
         }
 
-        // 7) Sequência {{id}}
-        $idVal = (string) $sequenceNumber;
+        // --- 7) Sequência {{id}} ---
+        $idVal = (string)$sequenceNumber;
         $search[]  = '{{id}}';   $replace[] = $idVal;
         $search[]  = '{{ id }}'; $replace[] = $idVal;
 
-        // 8) Aplica em cada parte separadamente
+        // --- 8) Substitui separadamente em cada parte ---
         $header = str_replace($search, $replace, $tpl->header_html);
         $body   = str_replace($search, $replace, $tpl->body_html);
         $footer = str_replace($search, $replace, $tpl->footer_html);
