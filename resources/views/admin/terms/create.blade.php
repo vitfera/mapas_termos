@@ -5,7 +5,7 @@
 @stop
 
 @section('content')
-  <form action="{{ route('admin.terms.store') }}" method="POST">
+  <form id="termsForm" action="{{ route('admin.terms.store') }}" method="POST">
     @csrf
 
     <div class="form-group">
@@ -28,8 +28,37 @@
       </select>
     </div>
 
-    <button type="submit" class="btn btn-success">
-      Gerar Termos
+    <button id="btnGenerate" type="submit" class="btn btn-success">
+      <span id="btnText">Gerar Termos</span>
+      <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true" style="display: none;"></span>
     </button>
   </form>
 @stop
+
+@push('js')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form     = document.getElementById('termsForm');
+  const btn      = document.getElementById('btnGenerate');
+  const btnText  = document.getElementById('btnText');
+  const spinner  = document.getElementById('btnSpinner');
+
+  form.addEventListener('submit', function() {
+    // Desativa o botão e mostra spinner
+    btn.disabled = true;
+    btnText.textContent = 'Gerando...';
+    spinner.style.display = 'inline-block';
+
+    // Quando a janela voltar a ter foco (download finalizado), resetamos
+    function resetButton() {
+      btn.disabled = false;
+      btnText.textContent = 'Gerar Termos';
+      spinner.style.display = 'none';
+      window.removeEventListener('focus', resetButton);
+    }
+
+    window.addEventListener('focus', resetButton);
+  });
+});
+</script>
+@endpush
