@@ -8,7 +8,7 @@ use App\Models\Template;
 use App\Models\GeneratedTerm;
 use App\Models\PlaceholderMapping;
 use App\Models\ExternalOpportunity;
-use App\Models\ExternalRegistrationFieldConfiguration;
+use App\Models\OpportunitySetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PDF; // se usar barryvdh/laravel-dompdf
@@ -36,22 +36,23 @@ class TermsController extends Controller
         $data = $request->validate([
             'opportunity_id' => 'required|integer',
             'template_id'    => 'required|integer',
-            'start_number'   => 'nullable|integer|min:1',
         ]);
 
         $oppId       = $data['opportunity_id'];
         $template    = Template::findOrFail($data['template_id']);
-        $startNumber = $data['start_number'] ?? 1;
-        $currentNumber = $startNumber;
 
-        // 1) busca inscrições aprovadas (status=10) na fase principal
+        // pega o número inicial da tabela opportunity_settings
+        $setting       = OpportunitySetting::where('opportunity_id', $oppId)->first();
+        $currentNumber = $setting->start_number ?? 1;
+
+        // 1) inscrições aprovadas...
         $registrationIds = DB::connection('pgsql_remote')
             ->table('registration')
             ->where('opportunity_id', $oppId)
             ->where('status', 10)
             ->pluck('id');
 
-        // garante diretório de saída
+        // garante diretório...
         $termsPath = storage_path('app/terms');
         if (! is_dir($termsPath)) {
             mkdir($termsPath, 0755, true);
@@ -62,27 +63,25 @@ class TermsController extends Controller
             // 2) gera as partes do termo com placeholders substituídos, incluindo ID sequencial
             [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId, $currentNumber);
 
-            // 3) gera PDF via Blade view e CSS @page para header/footer fixos
             $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
-                      ->setPaper('A4','portrait');
+                    ->setPaper('A4','portrait');
 
-            // monta filename: inclui número de inscrição e nome do agente em slug
-            $registration = DB::connection('pgsql_remote')
+            // monta filename...
+            $regInfo   = DB::connection('pgsql_remote')
                 ->table('registration')
                 ->where('id', $regId)
                 ->select('number', 'agent_id')
                 ->first();
-            $regNumber = $registration->number ?? $regId;
-            $agentNameRaw = DB::connection('pgsql_remote')
+            $regNumber = $regInfo->number ?? $regId;
+            $agentName = DB::connection('pgsql_remote')
                 ->table('agent')
-                ->where('id', $registration->agent_id)
+                ->where('id', $regInfo->agent_id)
                 ->value('name');
-            $agentSlug = Str::slug($agentNameRaw ?: '');
+            $agentSlug = Str::slug($agentName ?: '');
             $filename = "term_{$oppId}_{$regNumber}_{$agentSlug}.pdf";
 
             $pdf->save("{$termsPath}/{$filename}");
 
-            // 4) opcional: registra o arquivo no banco
             GeneratedTerm::create([
                 'template_id'     => $template->id,
                 'opportunity_id'  => $oppId,
@@ -94,12 +93,11 @@ class TermsController extends Controller
             $currentNumber++;
         }
 
-        // 5) se só um PDF, retorna ele direto
+        // download ou zip...
         if (count($files) === 1) {
             return response()->download($files[0])->deleteFileAfterSend();
         }
 
-        // 6) senão, zipa todos
         $zipName = "terms_{$oppId}.zip";
         $zipPath = "{$termsPath}/{$zipName}";
         $zip = new \ZipArchive;
@@ -148,8 +146,7 @@ class TermsController extends Controller
         }
 
         // adiciona placeholder {{id}} se existir no template
-        $year = date('Y');
-        $idValue = "{$sequenceNumber}/{$year}";
+        $idValue = (string) $sequenceNumber;
         $search[]  = '{{id}}';
         $replace[] = $idValue;
         $search[]  = '{{ id }}';
