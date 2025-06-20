@@ -2,6 +2,13 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.2] – 2025-06-20
+
+### Adicionado
+- Suporte a HTTPS via Let’s Encrypt (certbot)  
+- Configuração de Nginx para servir em `https://sub.seudominio.com`  
+- Atualização do `docker-compose.yml` com certificados e portas 443/80  
+
 ## [1.0.1] – 2025-06-20
 
 ### Adicionado
