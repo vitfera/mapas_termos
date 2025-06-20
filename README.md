@@ -1,52 +1,38 @@
+# Termos Culturais
 
-# Setup Docker Laravel 11 com PHP 8.3
-[Assine a Academy, e Seja VIP!](https://academy.especializati.com.br)
+Um sistema em Laravel 12 para gerenciar modelos de termos de Execução, Premiação e Compromisso Cultural, sincronizar editais de um banco Postgres externo, mapear campos dinâmicos e gerar PDFs (via Dompdf) com placeholders substituídos.
 
-### Passo a passo
-Clone Repositório
-```sh
-git clone -b laravel-12-with-php8.4 https://github.com/especializati/setup-docker-laravel.git app-laravel
-```
-```sh
-cd app-laravel
-```
+---
 
-Suba os containers do projeto
-```sh
-docker-compose up -d
-```
+## ✨ Funcionalidades
 
+- **CRUD de Templates** (nome, descrição, categoria, cabeçalho, corpo e rodapé em HTML WYSIWYG)
+- **Mapeamento de Placeholders** para cada edital (campo dinâmico, tipo de fonte, prioridade)
+- **Sincronização de Editais** (apenas leitura de `opportunity` do Postgres remoto)
+- **Configurações de Edital** (categoria, número inicial de termo)
+- **Geração de Termos** em PDF (unitário ou ZIP), com:
+  - Substituição de `{{campo}}`, `{{ id }}` e `{{ valor }}`
+  - Cabeçalho/Rodapé fixos em cada página
+  - Nome do arquivo incluindo número de inscrição e nome do proponente
 
-Crie o Arquivo .env
-```sh
-cp .env.example .env
-```
+---
 
-Acesse o container app
-```sh
-docker-compose exec app bash
-```
+## 📋 Pré-requisitos
 
+- PHP 8.4+
+- Composer
+- MySQL (aplicação principal)
+- PostgreSQL (banco `pgsql_remote` com tabelas `opportunity`, `registration`, `registration_meta`, `agent`, etc.)
+- Extensões PHP: `pdo_mysql`, `pdo_pgsql`, `mbstring`, `gd`, `zip`, `intl`
+- Dompdf (`barryvdh/laravel-dompdf`)
+- [Laravel AdminLTE](https://github.com/jeroennoten/Laravel-AdminLTE)
+- CKEditor 5 (CDN)
 
-Instale as dependências do projeto
-```sh
-composer install
-```
+---
 
-Gere a key do projeto Laravel
-```sh
-php artisan key:generate
-```
+## 🚀 Instalação
 
-OPCIONAL: Gere o banco SQLite (caso não use o banco MySQL)
-```sh
-touch database/database.sqlite
-```
-
-Rodar as migrations
-```sh
-php artisan migrate
-```
-
-Acesse o projeto
-[http://localhost:8000](http://localhost:8000)
+1. Clone o repositório  
+   ```bash
+   git clone https://github.com/vitfera/mapas_termos.git
+   cd mapas_termos
