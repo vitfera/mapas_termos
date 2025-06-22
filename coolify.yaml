@@ -1,0 +1,139 @@
+services:
+    # image project
+    app:
+        build:
+            context: .
+            dockerfile: ./docker/production/nginx/Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - laravel-storage-production:/var/www/storage:ro
+        depends_on:
+            - redis
+            - php-fpm
+        networks:
+            - laravel
+        ports:
+            # Map port 80 inside the container to the port specified by 'NGINX_PORT' on the host machine.
+            # -----------------------------------------------------------
+            # This allows external access to the Nginx web server running inside the container.
+            # For example, if 'NGINX_PORT' is set to '8080', accessing 'http://localhost:8080' will reach the application.
+            # -----------------------------------------------------------
+            - "${NGINX_PORT:-8088}:80"
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost"]
+            interval: 30s
+            timeout: 5s
+            retries: 3
+        stdin_open: true    # mantém STDIN aberto
+        tty: true           # aloca um pseudo-TTY
+
+    # nginx
+    php-fpm:
+        # For the php-fpm service, we will create a custom image to install the necessary PHP extensions and setup proper permissions.
+        build:
+            context: .
+            dockerfile: ./docker/common/php-fpm/Dockerfile
+            target: production
+        restart: unless-stopped
+        volumes:
+            - laravel-storage-production:/var/www/storage  # Mount the storage volume
+        env_file:
+            - .env
+        environment:
+            - PHP_FPM_LISTEN=9000
+            - PHP_FPM_USER=www-data
+            - PHP_FPM_GROUP=www-data
+        healthcheck:
+            test: ["CMD-SHELL", "php-fpm-healthcheck && curl -f http://localhost/ping || exit 1"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+        networks:
+            - laravel
+        depends_on:
+            db:
+                condition: service_healthy
+        stdin_open: true    # mantém STDIN aberto
+        tty: true           # aloca um pseudo-TTY
+
+    # db mysql
+    db:
+        image: mariadb:10.11
+        restart: unless-stopped
+        user: mysql
+        ports:
+            - "${DB_PORT:-3301}:3306"
+        environment:
+            - MARIADB_ROOT_PASSWORD=rootsecret     # senha do root do MariaDB
+            - MARIADB_DATABASE=pesquisa            # cria o schema 'pesquisa'
+            - MARIADB_USER=laravel                 # cria um usuário 'laravel'@'%'
+            - MARIADB_PASSWORD=secret              # senha do usuário 'laravel'
+        volumes:
+            - mysqldb-data-production:/var/lib/mysql
+            - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+        networks:
+            - laravel
+        # Health check for MariaDB
+        # -----------------------------------------------------------
+        # Health checks allow Docker to determine if a service is operational.
+        # The 'mysqladmin ping' command checks if MariaDB is ready to accept connections.
+        # This prevents dependent services from starting before the database is ready.
+        # -----------------------------------------------------------
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    # PHPMyAdmin
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        restart: unless-stopped
+        ports:
+            - "${PMA_PORT:-8087}:80"
+        environment:
+            - PMA_HOST=db
+            - PMA_PORT=3306
+            - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootsecret}
+            - PMA_USER=${DB_USERNAME:-laravel}
+            - PMA_PASSWORD=${DB_PASSWORD:-secret}
+            - PMA_ARBITRARY=0
+            - UPLOAD_LIMIT=128M
+        depends_on:
+            db:
+                condition: service_healthy
+        networks:
+            - laravel
+        # Health check for phpMyAdmin
+        # -----------------------------------------------------------
+        # Checks if the phpMyAdmin web interface is responsive
+        # -----------------------------------------------------------
+        healthcheck:
+            test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    # redis
+    redis:
+        image: redis:7.2-alpine
+        restart: unless-stopped
+        volumes:
+            - redis-data-production:/data
+        networks:
+            - laravel
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+
+networks:
+    laravel:
+        driver: bridge
+
+volumes:
+    laravel-storage-production:
+    mysqldb-data-production:
+    redis-data-production:

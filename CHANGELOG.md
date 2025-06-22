@@ -2,6 +2,15 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.3] – 2025-06-22
+
+### Removido
+- Todas as configurações de SSL do Nginx (Let’s Encrypt, certbot, portas 443/80)
+
+### Adicionado
+- Arquivos e scripts de infraestrutura para deployment em Coolify
+- Configurações de Nginx, Docker e CI/CD ajustadas para ambiente de produção no Coolify
+
 ## [1.0.2] – 2025-06-20
 
 ### Adicionado
