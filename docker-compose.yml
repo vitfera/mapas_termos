@@ -18,8 +18,7 @@ services:
         image: nginx:alpine
         restart: unless-stopped
         ports:
-            - "80:80"
-            - "443:443"
+            - "8080:80"
         volumes:
             - ./:/var/www
             - ./docker/nginx/:/etc/nginx/conf.d/
@@ -27,25 +26,6 @@ services:
             - ./certbot/www:/var/www/certbot
         environment:
             - VIRTUAL_HOST=sistemas.agentecultural.com.br
-        networks:
-            - laravel
-
-    # Certbot (Let’s Encrypt)
-    certbot:
-        image: certbot/certbot
-        restart: unless-stopped
-        volumes:
-        - ./certbot/conf:/etc/letsencrypt
-        - ./certbot/www:/var/www/certbot
-        entrypoint: >
-            sh -c "
-                # Renova a cada 12h
-                trap exit TERM;
-                while :; do
-                certbot renew --webroot -w /var/www/certbot --quiet;
-                sleep 12h;
-                done
-            "
         networks:
             - laravel
 
