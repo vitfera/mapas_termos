@@ -307,6 +307,11 @@ return [
 
         // Sidebar items:
         [
+            'text' => 'Dashboard',
+            'url'  => 'admin/dashboard',
+            'icon' => 'fas fa-tachometer-alt',
+        ],
+        [
             'header' => 'GERENCIAMENTO DE EDITAIS',
         ],
         [

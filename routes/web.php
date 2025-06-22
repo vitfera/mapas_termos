@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\PlaceholderMappingController;
 use App\Http\Controllers\Admin\TermsController;  // <-- import do TermsController
 use App\Http\Controllers\Admin\OpportunitySettingController;
+use App\Http\Controllers\Admin\DashboardController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -13,7 +14,16 @@ Route::get('/', function () {
 Route::prefix('admin')
      ->name('admin.')
      ->group(function() {
-         
+
+    // ao acessar /admin redireciona para /admin/dashboard
+    Route::get('/', function() {
+        return redirect()->route('admin.dashboard');
+    });
+
+    // Dashboard principal
+    Route::get('dashboard', [DashboardController::class, 'index'])
+         ->name('dashboard');
+
     // CRUD de Templates
     Route::resource('templates', TemplateController::class);
 
