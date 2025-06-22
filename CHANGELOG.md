@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.5] – 2025-06-22
+
+### Adicionado
+- Injeção dinâmica da `licenseKey` do CKEditor via variável global `window.CKEDITOR_LICENSE_KEY`, permitindo uso de chaves diferentes em desenvolvimento e produção sem rebuild de assets.
+- Exposição da chave correta no Blade antes do carregamento do `main.js`, usando `app()->environment()` para selecionar `CKEDITOR_LICENSE_PROD` ou `CKEDITOR_LICENSE_DEV`.
+
 ## [1.0.4] – 2025-06-22
 
 ### Adicionado
