@@ -2,6 +2,15 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.4] – 2025-06-22
+
+### Adicionado
+- Rota padrão `/admin` que redireciona para `/admin/dashboard`.  
+- `DashboardController` com método `index()` e view `admin.dashboard`.  
+- View Blade `resources/views/admin/dashboard.blade.php` com widgets de resumo (Templates, Mapeamentos, Configurações, Termos).  
+- Nova rota `GET /admin/dashboard` nomeada `admin.dashboard`.  
+- Item “Dashboard” adicionado ao menu lateral do AdminLTE (ícone `fas fa-tachometer-alt`).
+
 ## [1.0.3] – 2025-06-22
 
 ### Removido
