@@ -70,6 +70,12 @@
     <!-- CKEditor custom build UMD -->
     <script src="https://cdn.ckeditor.com/ckeditor5/45.2.0/ckeditor5.umd.js" crossorigin></script>
     <script src="https://cdn.ckeditor.com/ckeditor5/45.2.0/translations/pt-br.umd.js" crossorigin></script>
+    <script>
+        window.CKEDITOR_LICENSE_KEY = "{{ app()->environment('production')
+            ? env('CKEDITOR_LICENSE_PROD')
+            : env('CKEDITOR_LICENSE_DEV') }}";
+    </script>
+
     <!-- Sua configuração gerada -->
     <script src="{{ asset('js/main.js') }}"></script>
 
