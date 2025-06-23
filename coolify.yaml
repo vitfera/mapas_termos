@@ -136,4 +136,5 @@ networks:
 volumes:
     laravel-storage-production:
     mysqldb-data-production:
+        driver: local
     redis-data-production:
