@@ -205,13 +205,25 @@ class TermsController extends Controller
         $search  = ['{{valor}}','{{ valor }}'];
         $replace = [$valorReplacement, $valorReplacement];
 
+        $projectName = '';
+        // tenta coluna direta em registration (caso exista)
+        if (isset($ins->project_name)) {
+            $projectName = $ins->project_name;
+        } else {
+            // ou meta remota com key 'projectName' na fase principal
+            $projectName = $metaCache[$oppId]['projectName'] ?? '';
+        }
+
+        $search[]  = '{{projeto}}';    $replace[] = $projectName;
+        $search[]  = '{{ projeto }}';  $replace[] = $projectName;
+
         // --- 6) Todos os outros placeholders mapeados (de qualquer fase) ---
         $mappings = PlaceholderMapping::where('opportunity_id', $oppId)
             ->orderBy('priority')
             ->get();
 
         foreach($mappings as $map) {
-            if($map->placeholder_key === 'valor') {
+            if (in_array($map->placeholder_key, ['valor','projeto'], true)) {
                 continue;
             }
 
