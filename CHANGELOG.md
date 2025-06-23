@@ -2,6 +2,11 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.6] – 2025-06-23
+
+### Adicionado
+- Suporte ao placeholder `{{projeto}}`, substituído pelo `projectName` (chave do projeto) carregado do banco, com lookup em todas as fases (pai + filhas) no método `buildTermParts`.
+
 ## [1.0.5] – 2025-06-22
 
 ### Adicionado
