@@ -135,6 +135,8 @@ networks:
 
 volumes:
     laravel-storage-production:
-    mysqldb-data-production:
-        driver: local
+        external: true
     redis-data-production:
+        external: true
+    mysqldb-data-production:
+        external: true
