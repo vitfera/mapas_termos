@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     intl \
     zip \
     bcmath \
+    gd \
+    sockets \
     soap \
     && pecl install redis xdebug \
     && docker-php-ext-enable redis xdebug\

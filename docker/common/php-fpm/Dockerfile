@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     intl \
     zip \
     bcmath \
+    gd \
+    sockets \
     soap \
     && pecl install redis \
     && docker-php-ext-enable redis \
