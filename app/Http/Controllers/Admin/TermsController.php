@@ -44,8 +44,15 @@ class TermsController extends Controller
         $template    = Template::findOrFail($data['template_id']);
 
         // pega o número inicial da tabela opportunity_settings
-        $setting       = OpportunitySetting::where('opportunity_id', $oppId)->first();
-        $currentNumber = $setting->start_number ?? 1;
+        $setting = OpportunitySetting::firstOrCreate(
+            ['opportunity_id' => $oppId],
+            ['start_number'   => 1, 'last_sequence' => null]
+        );
+        
+        // se já geramos termos antes, próxima = last_sequence + 1; senão = start_number
+        $currentNumber = $setting->last_sequence
+            ? $setting->last_sequence + 1
+            : $setting->start_number;
 
         // 1) inscrições aprovadas...
         $registrationIds = DB::connection('pgsql_remote')
@@ -89,10 +96,17 @@ class TermsController extends Controller
                 'opportunity_id'  => $oppId,
                 'registration_id' => $regId,
                 'filename'        => $filename,
+                'sequence_number' => $currentNumber,
             ]);
 
             $files[] = "{$termsPath}/{$filename}";
             $currentNumber++;
+        }
+
+        // se gerou ao menos um termo novo, salva o último número usado
+        if ($setting->last_sequence !== $currentNumber - 1) {
+            $setting->last_sequence = $currentNumber - 1;
+            $setting->save();
         }
 
         // download ou zip...
@@ -120,10 +134,7 @@ class TermsController extends Controller
     {
         // --- 0) Identifica todas as fases relevantes (pai + filhas, exceto next) ---
         $phaseIds = ExternalOpportunity::query()
-            ->where(function($q) use($oppId){
-                $q->where('id', $oppId)
-                ->orWhere('parent_id', $oppId);
-            })
+            ->where(fn($q) => $q->where('id', $oppId)->orWhere('parent_id', $oppId))
             ->where('id', '!=', $oppId + 1)
             ->pluck('id')
             ->toArray();
@@ -138,12 +149,10 @@ class TermsController extends Controller
             ->join('registration_meta as rm', 'r.id', '=', 'rm.object_id')
             ->whereIn('r.opportunity_id', $phaseIds)
             ->where('rm.key', 'previousPhaseRegistrationId')
-            ->where('rm.value', (string)$regId)
+            ->where('rm.value', (string) $regId)
             ->select('r.id','r.opportunity_id')
             ->get();
-
-        foreach($childRows as $row) {
-            // mapeia phaseId → child registration id
+        foreach ($childRows as $row) {
             $regMap[$row->opportunity_id] = $row->id;
         }
 
@@ -166,10 +175,8 @@ class TermsController extends Controller
 
         // --- 4) Carrega registration_ranges da opportunity-pai ---
         $opp       = ExternalOpportunity::findOrFail($oppId);
-        $parentOpp = $opp->parent_id
-            ? ExternalOpportunity::findOrFail($opp->parent_id)
-            : $opp;
-        $ranges = json_decode($parentOpp->registration_ranges ?? '[]', true) ?: [];
+        $parentOpp = $opp->parent_id ? ExternalOpportunity::findOrFail($opp->parent_id) : $opp;
+        $ranges    = json_decode($parentOpp->registration_ranges ?? '[]', true) ?: [];
 
         // --- 5) Monta valor + extenso para {{valor}} ---
         $label = $ins->range ?? null;
@@ -180,7 +187,6 @@ class TermsController extends Controller
                 break;
             }
         }
-
         $valorReplacement = '';
         if($num !== null) {
             $fmtCur    = new \NumberFormatter('pt_BR', \NumberFormatter::CURRENCY);
@@ -202,7 +208,8 @@ class TermsController extends Controller
             $valorReplacement = "{$formatted} ({$spell})";
         }
 
-        $search  = ['{{valor}}','{{ valor }}'];
+        // --- 6) Inicia arrays de busca/substituição com {{valor}} e {{projeto}} ---
+        $search  = ['{{valor}}', '{{ valor }}'];
         $replace = [$valorReplacement, $valorReplacement];
 
         $projectName = '';
@@ -217,12 +224,10 @@ class TermsController extends Controller
         $search[]  = '{{projeto}}';    $replace[] = $projectName;
         $search[]  = '{{ projeto }}';  $replace[] = $projectName;
 
-        // --- 6) Todos os outros placeholders mapeados (de qualquer fase) ---
+        // --- 7) Adiciona todos os outros placeholders mapeados ---
         $mappings = PlaceholderMapping::where('opportunity_id', $oppId)
-            ->orderBy('priority')
-            ->get();
-
-        foreach($mappings as $map) {
+            ->orderBy('priority')->get();
+        foreach ($mappings as $map) {
             if (in_array($map->placeholder_key, ['valor','projeto'], true)) {
                 continue;
             }
@@ -250,12 +255,14 @@ class TermsController extends Controller
             $search[]  = $spaced; $replace[] = $value;
         }
 
-        // --- 7) Sequência {{id}} ---
-        $idVal = (string)$sequenceNumber;
-        $search[]  = '{{id}}';   $replace[] = $idVal;
-        $search[]  = '{{ id }}'; $replace[] = $idVal;
+        // --- 8) Substitui {{id}} usando o $sequenceNumber recebido ---
+        $idVal = (string) $sequenceNumber;
+        $search[]  = '{{id}}';
+        $replace[] = $idVal;
+        $search[]  = '{{ id }}';
+        $replace[] = $idVal;
 
-        // --- 8) Substitui separadamente em cada parte ---
+        // --- 9) Aplica em header, body e footer separadamente ---
         $header = str_replace($search, $replace, $tpl->header_html);
         $body   = str_replace($search, $replace, $tpl->body_html);
         $footer = str_replace($search, $replace, $tpl->footer_html);
