@@ -11,6 +11,7 @@ class OpportunitySetting extends Model
         'opportunity_id',
         'category',
         'start_number',
+        'last_sequence',
     ];
 
     /**
