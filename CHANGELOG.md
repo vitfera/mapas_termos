@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.7] – 2025-06-25
+
+### Adicionado
+- Uso exclusivo do parâmetro `$sequenceNumber` em `buildTermParts()` para o placeholder `{{id}}`, removendo qualquer concatenação de ano e exibindo apenas o número sequencial configurado.
+- Leitura do `start_number` em `opportunity_settings` como ponto de partida do contador, garantindo que cada termo utilize e incremente corretamente seu número sequencial por oportunidade.
+
 ## [1.0.6] – 2025-06-23
 
 ### Adicionado
