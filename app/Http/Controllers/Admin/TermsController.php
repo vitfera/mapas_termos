@@ -212,6 +212,16 @@ class TermsController extends Controller
         $search  = ['{{valor}}', '{{ valor }}'];
         $replace = [$valorReplacement, $valorReplacement];
 
+        // $label já foi definido acima como $ins->range
+        $modalidadeReplacement = $label ?: '';
+
+        // adiciona ao array de busca/substituição
+        $search[]  = '{{modalidade}}';
+        $replace[] = $modalidadeReplacement;
+
+        $search[]  = '{{ modalidade }}';
+        $replace[] = $modalidadeReplacement;
+
         $projectName = '';
         // tenta coluna direta em registration (caso exista)
         if (isset($ins->project_name)) {
