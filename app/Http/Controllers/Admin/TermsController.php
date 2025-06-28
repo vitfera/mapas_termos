@@ -70,18 +70,20 @@ class TermsController extends Controller
         $files = [];
         foreach ($registrationIds as $regId) {
             // 2) gera as partes do termo com placeholders substituídos, incluindo ID sequencial
-            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId, $currentNumber);
-
-            $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
-                    ->setPaper('A4','portrait');
-
-            // monta filename...
             $regInfo   = DB::connection('pgsql_remote')
                 ->table('registration')
                 ->where('id', $regId)
                 ->select('number', 'agent_id')
                 ->first();
             $regNumber = $regInfo->number ?? $regId;
+
+            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId, $regNumber, $currentNumber);
+
+            $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
+                    ->setPaper('A4','portrait');
+
+            // monta filename...
+            
             $agentName = DB::connection('pgsql_remote')
                 ->table('agent')
                 ->where('id', $regInfo->agent_id)
@@ -130,7 +132,7 @@ class TermsController extends Controller
      * Gera os arrays [header, body, footer] substituindo placeholders,
      * incluindo o placeholder {{id}} se existir, com numeração sequencial e ano atual.
      */
-    protected function buildTermParts(Template $tpl, int $oppId, int $regId, int $sequenceNumber): array
+    protected function buildTermParts(Template $tpl, int $oppId, int $regId, string $regNumber, int $sequenceNumber): array
     {
         // --- 0) Identifica todas as fases relevantes (pai + filhas, exceto next) ---
         $phaseIds = ExternalOpportunity::query()
@@ -221,6 +223,12 @@ class TermsController extends Controller
 
         $search[]  = '{{ modalidade }}';
         $replace[] = $modalidadeReplacement;
+
+        // placeholder {{inscricao}}
+        $search[]  = '{{inscricao}}';
+        $replace[] = $regNumber;
+        $search[]  = '{{ inscricao }}';
+        $replace[] = $regNumber;
 
         $projectName = '';
         // tenta coluna direta em registration (caso exista)
