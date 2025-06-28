@@ -2,7 +2,11 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
-## [1.0.8] – 2025-06-23
+### Adicionado
+- Passagem do número da inscrição (`registration.number`) como parâmetro `inscricao` para o método `buildTermParts()` em `TermsController`.  
+- Suporte ao placeholder `{{inscricao}}` e `{{ inscricao }}` nos templates, substituindo-o pelo número da inscrição correspondente.
+
+## [1.0.8] – 2025-06-28
 
 ### Adicionado
 - Suporte ao placeholder `{{modalidade}}`, que substitui pela label da faixa de inscrição (`range`) no termo.
