@@ -2,6 +2,12 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.0.8] – 2025-06-23
+
+### Adicionado
+- Suporte ao placeholder `{{modalidade}}`, que substitui pela label da faixa de inscrição (`range`) no termo.
+- Refatoração do método `buildTermParts()` em `TermsController` para extrair e processar o novo placeholder `{{modalidade}}`.
+
 ## [1.0.7] – 2025-06-25
 
 ### Adicionado
