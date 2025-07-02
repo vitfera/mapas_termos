@@ -66,6 +66,22 @@ services:
         networks:
             - laravel
 
+    # Laravel Queue Worker
+    queue-worker:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - ./:/var/www
+        depends_on:
+            - db
+            - redis
+        command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600 --timeout=3600 --memory=512 --verbose
+        networks:
+            - laravel
+
 networks:
     laravel:
         driver: bridge

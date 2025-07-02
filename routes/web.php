@@ -36,6 +36,14 @@ Route::prefix('admin')
     Route::post('terms', [TermsController::class, 'store'])
          ->name('terms.store');
 
+    // Novas rotas para processamento assíncrono
+    Route::get('terms/status', [TermsController::class, 'status'])
+         ->name('terms.status');
+    Route::get('terms/download', [TermsController::class, 'download'])
+         ->name('terms.download');
+    Route::get('terms/processes', [TermsController::class, 'processes'])
+         ->name('terms.processes');
+
     // CRUD de configurações de edital (sem create/store manuais)
     Route::resource('opportunity-settings', OpportunitySettingController::class)
         ->except(['create','store','show']);
