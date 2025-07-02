@@ -42,7 +42,7 @@
                 </div>
                 <div class="card-body">
                     @php
-                        $recentProcesses = \App\Models\TermGenerationProcess::with(['opportunity:id,name', 'template:id,name', 'user:id,name'])
+                        $recentProcesses = \App\Models\TermGenerationProcess::with(['opportunity:id,name', 'template:id,name'])
                             ->orderBy('created_at', 'desc')
                             ->take(5)
                             ->get();
@@ -55,7 +55,6 @@
                                     <tr>
                                         <th>Edital</th>
                                         <th>Template</th>
-                                        <th>Usuário</th>
                                         <th>Status</th>
                                         <th>Progresso</th>
                                         <th>Data</th>
@@ -67,7 +66,6 @@
                                         <tr>
                                             <td>{{ $process->opportunity->name ?? 'N/A' }}</td>
                                             <td>{{ $process->template->name ?? 'N/A' }}</td>
-                                            <td>{{ $process->user->name ?? 'N/A' }}</td>
                                             <td>
                                                 @php
                                                     $statusConfig = [

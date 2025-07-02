@@ -60,7 +60,7 @@ class TermsController extends Controller
         $process = TermGenerationProcess::create([
             'opportunity_id' => $data['opportunity_id'],
             'template_id' => $data['template_id'],
-            'user_id' => auth()->id(),
+            'user_id' => null, // Sistema ainda não tem autenticação
             'status' => 'pending',
             'total_registrations' => $registrationCount,
         ]);
@@ -129,12 +129,11 @@ class TermsController extends Controller
     }
 
     /**
-     * Lista processos do usuário atual
+     * Lista processos recentes
      */
     public function processes()
     {
-        $processes = TermGenerationProcess::where('user_id', auth()->id())
-            ->with(['opportunity:id,name', 'template:id,name'])
+        $processes = TermGenerationProcess::with(['opportunity:id,name', 'template:id,name'])
             ->orderBy('created_at', 'desc')
             ->take(20)
             ->get();
