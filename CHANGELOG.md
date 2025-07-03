@@ -2,6 +2,34 @@
 
 Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
 
+## [1.1.0] – 2025-07-02
+
+### Adicionado
+- **Processamento Assíncrono de Termos**  
+  - Implementação de geração assíncrona usando Laravel Queue Jobs para evitar timeout do nginx (2 minutos).
+  - Nova entidade `TermGenerationProcess` para controlar status e progresso dos processos de geração.
+  - Job `GenerateTermsJob` para processamento em background com timeout de 1 hora.
+  - Interface renovada com progress bar em tempo real e polling Ajax a cada 2 segundos.
+  - APIs para verificar status (`/admin/terms/status`), download (`/admin/terms/download`) e histórico (`/admin/terms/processes`).
+  - Dashboard atualizado com estatísticas dos processos: total de termos gerados, processos em andamento e concluídos hoje.
+  - Histórico de processos recentes com possibilidade de re-download de arquivos ZIP.
+  - Configuração de queue worker no `coolify.yaml` para execução automática em produção.
+  - Resposta imediata ao usuário ao iniciar geração, sem travamento da interface.
+  - Download automático do arquivo ZIP quando processamento concluído.
+  - Tratamento de erros individuais durante geração sem interromper o processo completo.
+  - Sistema funciona independente de autenticação (campo `user_id` nullable).
+
+### Corrigido
+- Timeout do nginx que interrompia geração de termos com muitas inscrições.
+- Falta de feedback visual durante processamento longo.
+- Impossibilidade de acompanhar progresso da geração.
+
+### Técnico
+- Migrations para tabelas `jobs`, `failed_jobs` e `term_generation_processes`.
+- Worker configurado com `restart: unless-stopped` no Docker.
+- CSS customizado com animações para progress bars e status badges.
+- Documentação completa em `docs/PROCESSAMENTO_ASSINCRONO.md`.
+
 ## [1.0.9] – 2025-06-28
 
 ### Adicionado
