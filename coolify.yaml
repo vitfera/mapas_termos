@@ -129,6 +129,31 @@ services:
             timeout: 5s
             retries: 3
 
+    # Laravel Queue Worker
+    queue-worker:
+        build:
+            context: .
+            dockerfile: ./docker/common/php-fpm/Dockerfile
+            target: production
+        restart: unless-stopped
+        working_dir: /var/www/
+        volumes:
+            - laravel-storage-production:/var/www/storage
+        env_file:
+            - .env
+        depends_on:
+            - db
+            - redis
+            - php-fpm
+        command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600 --timeout=3600 --memory=512 --verbose
+        networks:
+            - laravel
+        healthcheck:
+            test: ["CMD-SHELL", "pgrep -f 'queue:work' || exit 1"]
+            interval: 60s
+            timeout: 10s
+            retries: 3
+
 networks:
     laravel:
         driver: bridge

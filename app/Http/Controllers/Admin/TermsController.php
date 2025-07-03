@@ -10,9 +10,11 @@ use App\Models\PlaceholderMapping;
 use App\Models\ExternalOpportunity;
 use App\Models\OpportunitySetting;
 use App\Models\ExternalRegistrationFieldConfiguration;
+use App\Models\TermGenerationProcess;
+use App\Jobs\GenerateTermsJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use PDF;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use NumberFormatter;
 
 class TermsController extends Controller
@@ -31,7 +33,7 @@ class TermsController extends Controller
     }
 
     /**
-     * Gera e faz download dos PDFs (ou ZIP) dos termos
+     * Inicia geração assíncrona dos PDFs dos termos
      */
     public function store(Request $request)
     {
@@ -40,92 +42,103 @@ class TermsController extends Controller
             'template_id'    => 'required|integer',
         ]);
 
-        $oppId       = $data['opportunity_id'];
-        $template    = Template::findOrFail($data['template_id']);
-
-        // pega o número inicial da tabela opportunity_settings
-        $setting = OpportunitySetting::firstOrCreate(
-            ['opportunity_id' => $oppId],
-            ['start_number'   => 1, 'last_sequence' => null]
-        );
-        
-        // se já geramos termos antes, próxima = last_sequence + 1; senão = start_number
-        $currentNumber = $setting->last_sequence
-            ? $setting->last_sequence + 1
-            : $setting->start_number;
-
-        // 1) inscrições aprovadas...
-        $registrationIds = DB::connection('pgsql_remote')
+        // Conta quantas inscrições serão processadas
+        $registrationCount = DB::connection('pgsql_remote')
             ->table('registration')
-            ->where('opportunity_id', $oppId)
+            ->where('opportunity_id', $data['opportunity_id'])
             ->where('status', 10)
-            ->pluck('id');
+            ->count();
 
-        // garante diretório...
-        $termsPath = storage_path('app/terms');
-        if (! is_dir($termsPath)) {
-            mkdir($termsPath, 0755, true);
+        if ($registrationCount === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nenhuma inscrição aprovada encontrada para este edital.',
+            ], 400);
         }
 
-        $files = [];
-        foreach ($registrationIds as $regId) {
-            // 2) gera as partes do termo com placeholders substituídos, incluindo ID sequencial
-            $regInfo   = DB::connection('pgsql_remote')
-                ->table('registration')
-                ->where('id', $regId)
-                ->select('number', 'agent_id')
-                ->first();
-            $regNumber = $regInfo->number ?? $regId;
+        // Cria registro do processo
+        $process = TermGenerationProcess::create([
+            'opportunity_id' => $data['opportunity_id'],
+            'template_id' => $data['template_id'],
+            'user_id' => null, // Sistema ainda não tem autenticação
+            'status' => 'pending',
+            'total_registrations' => $registrationCount,
+        ]);
 
-            [$header, $body, $footer] = $this->buildTermParts($template, $oppId, $regId, $regNumber, $currentNumber);
+        // Despacha job assíncrono
+        GenerateTermsJob::dispatch($process->id);
 
-            $pdf = PDF::loadView('pdf.term', compact('header','body','footer'))
-                    ->setPaper('A4','portrait');
+        // Retorna resposta imediata com ID do processo
+        return response()->json([
+            'success' => true,
+            'message' => 'Geração de termos iniciada! O processamento está acontecendo em segundo plano.',
+            'process_id' => $process->id,
+            'total_registrations' => $registrationCount,
+        ]);
+    }
 
-            // monta filename...
-            
-            $agentName = DB::connection('pgsql_remote')
-                ->table('agent')
-                ->where('id', $regInfo->agent_id)
-                ->value('name');
-            $agentSlug = Str::slug($agentName ?: '');
-            $filename = "term_{$oppId}_{$regNumber}_{$agentSlug}.pdf";
-
-            $pdf->save("{$termsPath}/{$filename}");
-
-            GeneratedTerm::create([
-                'template_id'     => $template->id,
-                'opportunity_id'  => $oppId,
-                'registration_id' => $regId,
-                'filename'        => $filename,
-                'sequence_number' => $currentNumber,
-            ]);
-
-            $files[] = "{$termsPath}/{$filename}";
-            $currentNumber++;
+    /**
+     * Verifica status do processamento
+     */
+    public function status(Request $request)
+    {
+        $processId = $request->get('process_id');
+        
+        if (!$processId) {
+            return response()->json(['error' => 'process_id é obrigatório'], 400);
         }
 
-        // se gerou ao menos um termo novo, salva o último número usado
-        if ($setting->last_sequence !== $currentNumber - 1) {
-            $setting->last_sequence = $currentNumber - 1;
-            $setting->save();
+        $process = TermGenerationProcess::find($processId);
+        
+        if (!$process) {
+            return response()->json(['error' => 'Processo não encontrado'], 404);
         }
 
-        // download ou zip...
-        if (count($files) === 1) {
-            return response()->download($files[0])->deleteFileAfterSend();
+        return response()->json([
+            'status' => $process->status,
+            'progress_percentage' => $process->progress_percentage,
+            'processed_count' => $process->processed_count,
+            'total_registrations' => $process->total_registrations,
+            'zip_filename' => $process->zip_filename,
+            'error_message' => $process->error_message,
+            'started_at' => $process->started_at,
+            'completed_at' => $process->completed_at,
+        ]);
+    }
+
+    /**
+     * Download do arquivo ZIP gerado
+     */
+    public function download(Request $request)
+    {
+        $processId = $request->get('process_id');
+        
+        $process = TermGenerationProcess::find($processId);
+        
+        if (!$process || $process->status !== 'completed' || !$process->zip_filename) {
+            return response()->json(['error' => 'Arquivo não disponível'], 404);
         }
 
-        $zipName = "terms_{$oppId}.zip";
-        $zipPath = "{$termsPath}/{$zipName}";
-        $zip = new \ZipArchive;
-        $zip->open($zipPath, \ZipArchive::CREATE|\ZipArchive::OVERWRITE);
-        foreach ($files as $file) {
-            $zip->addFile($file, basename($file));
+        $filePath = storage_path('app/terms/' . $process->zip_filename);
+        
+        if (!file_exists($filePath)) {
+            return response()->json(['error' => 'Arquivo não encontrado'], 404);
         }
-        $zip->close();
 
-        return response()->download($zipPath)->deleteFileAfterSend();
+        return response()->download($filePath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Lista processos recentes
+     */
+    public function processes()
+    {
+        $processes = TermGenerationProcess::with(['opportunity:id,name', 'template:id,name'])
+            ->orderBy('created_at', 'desc')
+            ->take(20)
+            ->get();
+
+        return response()->json($processes);
     }
 
     /**
